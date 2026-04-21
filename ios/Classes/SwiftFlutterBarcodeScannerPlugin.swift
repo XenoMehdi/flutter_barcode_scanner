@@ -12,9 +12,8 @@ enum ScanMode:Int{
     }
 }
 
-public class SwiftFlutterBarcodeScannerPlugin: NSObject, FlutterPlugin, ScanBarcodeDelegate,FlutterStreamHandler {
-    
-    public static var viewController = UIViewController()
+public class SwiftFlutterBarcodeScannerPlugin: NSObject, FlutterPlugin, ScanBarcodeDelegate,FlutterStreamHandler, FlutterSceneLifeCycleDelegate {
+
     public static var lineColor:String=""
     public static var cancelButtonText:String=""
     public static var isShowFlashIcon:Bool=false
@@ -22,14 +21,23 @@ public class SwiftFlutterBarcodeScannerPlugin: NSObject, FlutterPlugin, ScanBarc
     public static var isContinuousScan:Bool=false
     static var barcodeStream:FlutterEventSink?=nil
     public static var scanMode = ScanMode.QR.index
+    var registrar: FlutterPluginRegistrar
+
+    var viewController: UIViewController { return registrar.viewController as! UIViewController }
     
     public static func register(with registrar: FlutterPluginRegistrar) {
-        viewController = (UIApplication.shared.delegate?.window??.rootViewController)!
         let channel = FlutterMethodChannel(name: "flutter_barcode_scanner", binaryMessenger: registrar.messenger())
-        let instance = SwiftFlutterBarcodeScannerPlugin()
+        let instance = SwiftFlutterBarcodeScannerPlugin(registrar: registrar)
         registrar.addMethodCallDelegate(instance, channel: channel)
+        
         let eventChannel=FlutterEventChannel(name: "flutter_barcode_scanner_receiver", binaryMessenger: registrar.messenger())
         eventChannel.setStreamHandler(instance)
+
+        registrar.addSceneDelegate(instance)
+    }
+
+    init(registrar: FlutterPluginRegistrar) {
+        self.registrar = registrar
     }
     
     /// Check for camera availability
@@ -98,18 +106,13 @@ public class SwiftFlutterBarcodeScannerPlugin: NSObject, FlutterPlugin, ScanBarc
         
         if checkCameraAvailability(){
             if checkForCameraPermission() {
-                SwiftFlutterBarcodeScannerPlugin.viewController.present(controller
-                                                                        , animated: true) {
-                    
-                }
+                viewController.present(controller, animated: true)
             }else {
-                AVCaptureDevice.requestAccess(for: .video) { success in
+                AVCaptureDevice.requestAccess(for: .video) { [weak self] success in
+                    guard let self = self else { return }
                     DispatchQueue.main.async {
                         if success {
-                            SwiftFlutterBarcodeScannerPlugin.viewController.present(controller
-                                                                                    , animated: true) {
-                                
-                            }
+                            self.viewController.present(controller, animated: true)
                         } else {
                             let alert = UIAlertController(title: "Action needed", message: "Please grant camera permission to use barcode scanner", preferredStyle: .alert)
                             
@@ -119,10 +122,11 @@ public class SwiftFlutterBarcodeScannerPlugin: NSObject, FlutterPlugin, ScanBarc
                             
                             alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
                             
-                            SwiftFlutterBarcodeScannerPlugin.viewController.present(alert, animated: true)
+                            self.viewController.present(alert, animated: true)
                         }
                     }
-                }}
+                }
+            }
         }else {
             showAlertDialog(title: "Unable to proceed", message: "Camera not available")
         }
@@ -137,7 +141,7 @@ public class SwiftFlutterBarcodeScannerPlugin: NSObject, FlutterPlugin, ScanBarc
         let alertController = UIAlertController(title: title, message: message, preferredStyle: .alert)
         let alertAction = UIAlertAction(title: "Ok", style: .default, handler: nil)
         alertController.addAction(alertAction)
-        SwiftFlutterBarcodeScannerPlugin.viewController.present(alertController, animated: true, completion: nil)
+        viewController.present(alertController, animated: true, completion: nil)
     }
 }
 
